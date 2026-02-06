@@ -1,6 +1,7 @@
 package com.skk.blog.controller;
 
 import com.skk.blog.common.Result;
+import com.skk.blog.entity.Article;
 import com.skk.blog.service.ArticleService;
 import com.skk.blog.service.BlogInfoService;
 import com.skk.blog.service.CategoryService;
@@ -11,7 +12,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -67,6 +70,14 @@ public class DashboardController {
         // 分类标签统计
         stats.put("categories", categoryService.count());
         stats.put("tags", tagService.count());
+
+        // 最近文章（取最近创建的10篇文章）
+        List<Article> recentArticles = articleService.list()
+                .stream()
+                .sorted((a, b) -> b.getCreateTime().compareTo(a.getCreateTime()))
+                .limit(10)
+                .toList();
+        stats.put("recentArticles", recentArticles);
 
         // 博客信息
         stats.put("blogInfo", blogInfoService.getBlogInfo());
