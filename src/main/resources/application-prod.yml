@@ -1,0 +1,16 @@
+# 生产环境配置
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    url: jdbc:mysql://your-prod-host:3306/myblog?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: prod_user
+    password: prod_password
+
+# 日志级别
+logging:
+  level:
+    com.blog: info
+    com.baomidou.mybatisplus: info

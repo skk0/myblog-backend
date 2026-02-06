@@ -1,0 +1,25 @@
+# Compiled class files
+*.class
+
+# Log files
+*.log
+
+# Maven
+target/
+pom.xml.tag
+*.jar
+
+# IDE
+.idea/
+*.iml
+*.iws
+.vscode/
+.DS_Store
+
+# Application
+uploads/*
+!uploads/.gitkeep
+application-local.yml
+
+# OS
+Thumbs.db

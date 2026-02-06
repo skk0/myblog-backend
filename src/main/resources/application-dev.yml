@@ -1,0 +1,16 @@
+# 开发环境配置
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+  datasource:
+    url: jdbc:mysql://192.168.0.45:3306/mytest?characterEncoding=utf-8&useSSL=false&serverTimeZone=UTC
+    username: root
+    password: 123456
+
+# 日志级别
+logging:
+  level:
+    com.blog: debug
+    com.baomidou.mybatisplus: debug
