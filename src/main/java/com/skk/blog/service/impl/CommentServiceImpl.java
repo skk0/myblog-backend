@@ -20,6 +20,10 @@ import java.util.stream.Collectors;
 @Service
 public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> implements CommentService {
 
+    private static final String STATUS_PENDING = "pending";
+    private static final String STATUS_APPROVED = "approved";
+    private static final String STATUS_REJECTED = "rejected";
+
     private final CommentMapper commentMapper;
     private final ArticleMapper articleMapper;
 
@@ -32,25 +36,7 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
     public List<Comment> getCommentList(CommentQueryDTO query) {
         Page<Comment> pageParam = new Page<>(query.getPage(), query.getLimit());
 
-        LambdaQueryWrapper<Comment> wrapper = new LambdaQueryWrapper<>();
-
-        if (query.getType() != null) {
-            wrapper.eq(Comment::getType, query.getType());
-        }
-
-        if (query.getArticleId() != null) {
-            wrapper.eq(Comment::getArticleId, query.getArticleId());
-        }
-
-        if ("pending".equals(query.getStatus())) {
-            wrapper.eq(Comment::getApproved, 0);
-        } else if ("approved".equals(query.getStatus())) {
-            wrapper.eq(Comment::getApproved, 1);
-        } else if ("rejected".equals(query.getStatus())) {
-            wrapper.eq(Comment::getApproved, 2);
-        }
-
-        wrapper.orderByDesc(Comment::getCreateTime);
+        LambdaQueryWrapper<Comment> wrapper = buildCommentListWrapper(query);
 
         IPage<Comment> commentPage = this.page(pageParam, wrapper);
 
@@ -58,6 +44,11 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
         commentPage.getRecords().forEach(this::enrichComment);
 
         return commentPage.getRecords();
+    }
+
+    @Override
+    public Long countCommentList(CommentQueryDTO query) {
+        return this.count(buildCommentListWrapper(query));
     }
 
     @Override
@@ -160,5 +151,28 @@ public class CommentServiceImpl extends ServiceImpl<CommentMapper, Comment> impl
                 comment.setArticleTitle(article.getTitle());
             }
         }
+    }
+
+    private LambdaQueryWrapper<Comment> buildCommentListWrapper(CommentQueryDTO query) {
+        LambdaQueryWrapper<Comment> wrapper = new LambdaQueryWrapper<>();
+
+        if (query.getType() != null) {
+            wrapper.eq(Comment::getType, query.getType());
+        }
+
+        if (query.getArticleId() != null) {
+            wrapper.eq(Comment::getArticleId, query.getArticleId());
+        }
+
+        if (STATUS_PENDING.equals(query.getStatus())) {
+            wrapper.eq(Comment::getApproved, 0);
+        } else if (STATUS_APPROVED.equals(query.getStatus())) {
+            wrapper.eq(Comment::getApproved, 1);
+        } else if (STATUS_REJECTED.equals(query.getStatus())) {
+            wrapper.eq(Comment::getApproved, 2);
+        }
+
+        wrapper.orderByDesc(Comment::getCreateTime);
+        return wrapper;
     }
 }

@@ -14,6 +14,8 @@ public interface CommentService extends IService<Comment> {
      */
     List<Comment> getCommentList(CommentQueryDTO query);
 
+    Long countCommentList(CommentQueryDTO query);
+
     /**
      * 获取文章评论
      */

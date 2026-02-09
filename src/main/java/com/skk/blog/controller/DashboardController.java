@@ -23,6 +23,10 @@ import java.util.Map;
 @PreAuthorize("hasRole('ADMIN')")
 public class DashboardController {
 
+    private static final String STATUS_ALL = "all";
+    private static final String STATUS_PUBLISHED = "published";
+    private static final String STATUS_DRAFT = "draft";
+
     private final ArticleService articleService;
     private final CommentService commentService;
     private final CategoryService categoryService;
@@ -48,9 +52,9 @@ public class DashboardController {
 
         // 文章统计
         Map<String, Object> articleStats = new HashMap<>();
-        articleStats.put("total", articleService.count());
-        articleStats.put("published", articleService.count());
-        articleStats.put("drafts", 0);
+        articleStats.put("total", articleService.countArticleList(null, STATUS_ALL, null, null));
+        articleStats.put("published", articleService.countArticleList(null, STATUS_PUBLISHED, null, null));
+        articleStats.put("drafts", articleService.countArticleList(null, STATUS_DRAFT, null, null));
         Object articleStatsResult = articleService.getArticleStats();
         if (articleStatsResult instanceof Map) {
             Map<String, Object> resultMap = (Map<String, Object>) articleStatsResult;
@@ -72,11 +76,7 @@ public class DashboardController {
         stats.put("tags", tagService.count());
 
         // 最近文章（取最近创建的10篇文章）
-        List<Article> recentArticles = articleService.list()
-                .stream()
-                .sorted((a, b) -> b.getCreateTime().compareTo(a.getCreateTime()))
-                .limit(10)
-                .toList();
+        List<Article> recentArticles = articleService.getArticleList(1, 10, null, STATUS_ALL, null, null);
         stats.put("recentArticles", recentArticles);
 
         // 博客信息

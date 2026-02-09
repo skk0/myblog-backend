@@ -28,8 +28,7 @@ public class CommentController {
     @Operation(summary = "获取评论列表")
     public Result<PageResult<Comment>> getComments(@ModelAttribute CommentQueryDTO query) {
         List<Comment> comments = commentService.getCommentList(query);
-
-        Long total = commentService.count();
+        Long total = commentService.countCommentList(query);
 
         return Result.success(PageResult.of(comments, total, (long) query.getPage(), (long) query.getLimit()));
     }

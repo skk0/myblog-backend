@@ -12,6 +12,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -25,19 +27,21 @@ import java.util.*;
 @Tag(name = "前台博客接口")
 public class BlogPublicController {
 
+    private static final String STATUS_APPROVED = "approved";
+
     private final CommentService commentService;
     private final ArticleService articleService;
     private final BlogInfoService blogInfoService;
-
-    // 图片存储基础路径
-    private static final String UPLOAD_PATH = "/Users/jiangshikang/IdeaProjects/myblog/uploads";
+    private final String uploadPath;
 
     public BlogPublicController(CommentService commentService,
                                 ArticleService articleService,
-                                BlogInfoService blogInfoService) {
+                                BlogInfoService blogInfoService,
+                                @Value("${blog.upload.path}") String uploadPath) {
         this.commentService = commentService;
         this.articleService = articleService;
         this.blogInfoService = blogInfoService;
+        this.uploadPath = uploadPath;
     }
 
     // ===== 评论接口 =====
@@ -54,10 +58,14 @@ public class BlogPublicController {
         query.setPage(page);
         query.setLimit(limit);
         query.setType(type);
-        query.setStatus("approved"); // 前台只显示已审核的评论
+        query.setStatus(STATUS_APPROVED); // 前台只显示已审核的评论
 
-        if (articleId != null) {
-            query.setArticleId(Long.parseLong(articleId));
+        if (StringUtils.hasText(articleId)) {
+            try {
+                query.setArticleId(Long.parseLong(articleId));
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("articleId 参数格式错误");
+            }
         }
 
         List<Comment> comments = commentService.getCommentList(query);
@@ -90,6 +98,9 @@ public class BlogPublicController {
         try {
             // 获取原始文件名
             String originalFilename = file.getOriginalFilename();
+            if (!StringUtils.hasText(originalFilename) || !originalFilename.contains(".")) {
+                return Result.error("文件名非法");
+            }
             String ext = originalFilename.substring(originalFilename.lastIndexOf("."));
 
             // 生成新文件名: 时间戳_随机数.扩展名
@@ -97,7 +108,7 @@ public class BlogPublicController {
 
             // 按日期创建子目录
             String datePath = java.time.LocalDate.now().toString().replace("-", "/");
-            Path uploadDir = Paths.get(UPLOAD_PATH, datePath);
+            Path uploadDir = Paths.get(uploadPath, datePath);
             if (!Files.exists(uploadDir)) {
                 Files.createDirectories(uploadDir);
             }

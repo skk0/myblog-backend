@@ -13,6 +13,8 @@ public interface ArticleService extends IService<Article> {
      */
     List<Article> getArticleList(Integer page, Integer limit, String keyword, String status, Long categoryId, Long tagId);
 
+    Long countArticleList(String keyword, String status, Long categoryId, Long tagId);
+
     /**
      * 获取文章详情
      */

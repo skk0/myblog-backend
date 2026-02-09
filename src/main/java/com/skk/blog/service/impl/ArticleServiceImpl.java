@@ -24,6 +24,11 @@ import java.util.stream.Collectors;
 @Service
 public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> implements ArticleService {
 
+    private static final String STATUS_ALL = "all";
+    private static final String STATUS_PUBLISHED = "published";
+    private static final String STATUS_DRAFT = "draft";
+    private static final String STATUS_ARCHIVED = "archived";
+
     private final CategoryService categoryService;
     private final TagMapper tagMapper;
     private final ArticleTagMapper articleTagMapper;
@@ -40,38 +45,9 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
     public List<Article> getArticleList(Integer page, Integer limit, String keyword, String status, Long categoryId, Long tagId) {
         Page<Article> pageParam = new Page<>(page, limit);
 
-        LambdaQueryWrapper<Article> wrapper = new LambdaQueryWrapper<>();
-
-        // 根据状态过滤，admin 可查看所有状态
-        if (StringUtils.hasText(status) && !"all".equals(status)) {
-            wrapper.eq(Article::getStatus, status);
-        }
-
-        wrapper.orderByDesc(Article::getIsTop)
-               .orderByDesc(Article::getCreateTime);
-
-        if (StringUtils.hasText(keyword)) {
-            wrapper.and(w -> w.like(Article::getTitle, keyword)
-                             .or()
-                             .like(Article::getContent, keyword));
-        }
-
-        if (categoryId != null) {
-            wrapper.eq(Article::getCategoryId, categoryId);
-        }
-
-        if (tagId != null) {
-            // 通过标签关联查询
-            List<Long> articleIds = articleTagMapper.selectList(
-                    new LambdaQueryWrapper<ArticleTag>()
-                            .eq(ArticleTag::getTagId, tagId)
-            ).stream().map(ArticleTag::getArticleId).collect(Collectors.toList());
-
-            if (!articleIds.isEmpty()) {
-                wrapper.in(Article::getId, articleIds);
-            } else {
-                return Collections.emptyList();
-            }
+        LambdaQueryWrapper<Article> wrapper = buildArticleListWrapper(keyword, status, categoryId, tagId);
+        if (wrapper == null) {
+            return Collections.emptyList();
         }
 
         IPage<Article> articlePage = this.page(pageParam, wrapper);
@@ -84,10 +60,19 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
     }
 
     @Override
+    public Long countArticleList(String keyword, String status, Long categoryId, Long tagId) {
+        LambdaQueryWrapper<Article> wrapper = buildArticleListWrapper(keyword, status, categoryId, tagId);
+        if (wrapper == null) {
+            return 0L;
+        }
+        return this.count(wrapper);
+    }
+
+    @Override
     public Article getArticleDetail(String slug) {
         Article article = this.lambdaQuery()
                 .eq(Article::getSlug, slug)
-                .eq(Article::getStatus, "published")
+                .eq(Article::getStatus, STATUS_PUBLISHED)
                 .one();
 
         if (article != null) {
@@ -123,12 +108,12 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
         article.setContent(dto.getContent());
         article.setCover(dto.getCover());
         article.setCategoryId(dto.getCategoryId());
-        article.setStatus(dto.getStatus() != null ? dto.getStatus() : "draft");
+        article.setStatus(dto.getStatus() != null ? dto.getStatus() : STATUS_DRAFT);
         article.setIsTop(dto.getIsTop() != null ? dto.getIsTop() : 0);
         article.setViews(0);
         article.setLikes(0);
 
-        if ("published".equals(dto.getStatus())) {
+        if (STATUS_PUBLISHED.equals(article.getStatus())) {
             article.setPublishTime(new Date());
         }
 
@@ -159,11 +144,11 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
         article.setIsTop(dto.getIsTop() != null ? dto.getIsTop() : article.getIsTop());
 
         String oldStatus = article.getStatus();
-        String newStatus = dto.getStatus();
+        String newStatus = dto.getStatus() != null ? dto.getStatus() : oldStatus;
         article.setStatus(newStatus);
 
         // 如果从草稿变为发布，设置发布时间
-        if ("draft".equals(oldStatus) && "published".equals(newStatus)) {
+        if (STATUS_DRAFT.equals(oldStatus) && STATUS_PUBLISHED.equals(newStatus)) {
             article.setPublishTime(new Date());
         }
 
@@ -186,13 +171,15 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
     @Override
     public void updateArticleStatus(Long id, String status) {
         Article article = this.getById(id);
-        if (article != null) {
-            article.setStatus(status);
-            if ("published".equals(status)) {
-                article.setPublishTime(new Date());
-            }
-            this.updateById(article);
+        if (article == null) {
+            throw new RuntimeException("文章不存在");
         }
+
+        article.setStatus(status);
+        if (STATUS_PUBLISHED.equals(status)) {
+            article.setPublishTime(new Date());
+        }
+        this.updateById(article);
     }
 
     @Override
@@ -215,12 +202,48 @@ public class ArticleServiceImpl extends ServiceImpl<ArticleMapper, Article> impl
     @Override
     public Object getArticleStats() {
         Map<String, Object> stats = new HashMap<>();
+        Long totalViews = this.baseMapper.totalViews();
         stats.put("total", this.count());
-        stats.put("published", this.baseMapper.countByStatus("published"));
-        stats.put("drafts", this.baseMapper.countByStatus("draft"));
-        stats.put("archived", this.baseMapper.countByStatus("archived"));
-        stats.put("views", this.baseMapper.totalViews());
+        stats.put("published", this.baseMapper.countByStatus(STATUS_PUBLISHED));
+        stats.put("drafts", this.baseMapper.countByStatus(STATUS_DRAFT));
+        stats.put("archived", this.baseMapper.countByStatus(STATUS_ARCHIVED));
+        stats.put("views", totalViews != null ? totalViews : 0L);
         return stats;
+    }
+
+    private LambdaQueryWrapper<Article> buildArticleListWrapper(String keyword, String status, Long categoryId, Long tagId) {
+        LambdaQueryWrapper<Article> wrapper = new LambdaQueryWrapper<>();
+
+        if (StringUtils.hasText(status) && !STATUS_ALL.equals(status)) {
+            wrapper.eq(Article::getStatus, status);
+        }
+
+        wrapper.orderByDesc(Article::getIsTop)
+                .orderByDesc(Article::getCreateTime);
+
+        if (StringUtils.hasText(keyword)) {
+            wrapper.and(w -> w.like(Article::getTitle, keyword)
+                    .or()
+                    .like(Article::getContent, keyword));
+        }
+
+        if (categoryId != null) {
+            wrapper.eq(Article::getCategoryId, categoryId);
+        }
+
+        if (tagId != null) {
+            List<Long> articleIds = articleTagMapper.selectList(
+                    new LambdaQueryWrapper<ArticleTag>()
+                            .eq(ArticleTag::getTagId, tagId)
+            ).stream().map(ArticleTag::getArticleId).collect(Collectors.toList());
+
+            if (articleIds.isEmpty()) {
+                return null;
+            }
+            wrapper.in(Article::getId, articleIds);
+        }
+
+        return wrapper;
     }
 
     private void enrichArticle(Article article) {

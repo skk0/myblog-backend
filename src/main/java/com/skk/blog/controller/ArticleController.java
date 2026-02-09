@@ -1,7 +1,6 @@
 package com.skk.blog.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.skk.blog.common.JwtTokenUtil;
 import com.skk.blog.common.PageResult;
 import com.skk.blog.common.Result;
 import com.skk.blog.dto.ArticleDTO;
@@ -10,10 +9,12 @@ import com.skk.blog.entity.Article;
 import com.skk.blog.entity.ArticleTag;
 import com.skk.blog.entity.Category;
 import com.skk.blog.entity.Tag;
+import com.skk.blog.entity.User;
 import com.skk.blog.mapper.ArticleTagMapper;
 import com.skk.blog.mapper.CategoryMapper;
 import com.skk.blog.mapper.TagMapper;
 import com.skk.blog.service.ArticleService;
+import com.skk.blog.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -31,22 +32,24 @@ import java.util.stream.Collectors;
 @PreAuthorize("hasRole('ADMIN')")
 public class ArticleController {
 
+    private static final String ANONYMOUS_USER = "anonymousUser";
+
     private final ArticleService articleService;
-    private final JwtTokenUtil jwtTokenUtil;
     private final CategoryMapper categoryMapper;
     private final TagMapper tagMapper;
     private final ArticleTagMapper articleTagMapper;
+    private final UserService userService;
 
     public ArticleController(ArticleService articleService,
-                            JwtTokenUtil jwtTokenUtil,
                             CategoryMapper categoryMapper,
                             TagMapper tagMapper,
-                            ArticleTagMapper articleTagMapper) {
+                            ArticleTagMapper articleTagMapper,
+                            UserService userService) {
         this.articleService = articleService;
-        this.jwtTokenUtil = jwtTokenUtil;
         this.categoryMapper = categoryMapper;
         this.tagMapper = tagMapper;
         this.articleTagMapper = articleTagMapper;
+        this.userService = userService;
     }
 
     @GetMapping
@@ -61,8 +64,12 @@ public class ArticleController {
                 query.getTagId()
         );
 
-        // 获取总数
-        Long total = articleService.count();
+        Long total = articleService.countArticleList(
+                query.getKeyword(),
+                query.getStatus(),
+                query.getCategoryId(),
+                query.getTagId()
+        );
 
         return Result.success(PageResult.of(articles, total, (long) query.getPage(), (long) query.getLimit()));
     }
@@ -163,10 +170,19 @@ public class ArticleController {
 
     private Long getCurrentUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof Long) {
-            return (Long) authentication.getPrincipal();
+        if (authentication == null || authentication.getPrincipal() == null) {
+            throw new RuntimeException("未登录或登录状态已失效");
         }
-        // Fallback: try to extract from JWT token if available
-        return 1L;
+
+        String username = authentication.getName();
+        if (username == null || ANONYMOUS_USER.equals(username)) {
+            throw new RuntimeException("未登录或登录状态已失效");
+        }
+
+        User user = userService.getByUsername(username);
+        if (user == null || user.getId() == null) {
+            throw new RuntimeException("当前用户不存在");
+        }
+        return user.getId();
     }
 }
