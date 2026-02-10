@@ -69,6 +69,15 @@ public class BlogInfoServiceImpl extends ServiceImpl<BlogInfoMapper, BlogInfo> i
         }
 
         result.put("social", social);
+
+        Object avatar = result.get("avatar");
+        if (avatar instanceof String) {
+            String avatarValue = ((String) avatar).trim();
+            if (avatarValue.isEmpty() || "/".equals(avatarValue)) {
+                result.put("avatar", "");
+            }
+        }
+
         return result;
     }
 
